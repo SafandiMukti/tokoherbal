@@ -1,0 +1,6 @@
+# Git di Windows bisa mengubah akhir baris menjadi CRLF dan merusak file
+# yang dibaca container Linux (SQL, shell script, YAML). Paksa LF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

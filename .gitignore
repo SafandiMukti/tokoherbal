@@ -1,0 +1,8 @@
+.env
+node_modules/
+.next/
+*.exe
+*.log
+.idea/
+.vscode/
+uploads/

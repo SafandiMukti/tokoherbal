@@ -1,0 +1,43 @@
+# Pakai ekstensi "REST Client" di VS Code, lalu klik "Send Request" di atas tiap blok.
+# Lebih mudah daripada curl di Command Prompt karena tidak perlu escape tanda kutip.
+
+@host = http://localhost:8081
+
+### Health
+GET {{host}}/health
+
+### Register
+POST {{host}}/register
+Content-Type: application/json
+
+{ "email": "andi@example.com", "password": "rahasia123" }
+
+### Register dengan role (harus DITOLAK 400, field role tidak dikenal)
+POST {{host}}/register
+Content-Type: application/json
+
+{ "email": "hacker@example.com", "password": "rahasia123", "role": "admin" }
+
+### Login
+# @name login
+POST {{host}}/login
+Content-Type: application/json
+
+{ "email": "andi@example.com", "password": "rahasia123" }
+
+### Verify (memakai access token dari login di atas)
+GET {{host}}/verify
+Authorization: Bearer {{login.response.body.access_token}}
+
+### Refresh (token lama langsung hangus setelah dipakai)
+# @name refreshed
+POST {{host}}/refresh
+Content-Type: application/json
+
+{ "refresh_token": "{{login.response.body.refresh_token}}" }
+
+### Logout (cabut refresh token hasil refresh di atas)
+POST {{host}}/logout
+Content-Type: application/json
+
+{ "refresh_token": "{{refreshed.response.body.refresh_token}}" }

@@ -1,0 +1,59 @@
+name: tokoherbal
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?isi DB_PASSWORD di file .env}
+    ports:
+      # 5433 di laptop supaya tidak bentrok dengan PostgreSQL lain di port 5432
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./db/seed.sql:/seed/seed.sql:ro
+    healthcheck:
+      # -h 127.0.0.1 penting: saat inisialisasi, Postgres sementara hanya
+      # mendengarkan lewat socket. Cek lewat TCP baru lolos setelah init.sql selesai.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # batasi memori dan buang key lama saat penuh (lihat Bab 6.1 panduan)
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    build: ./auth-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://postgres:${DB_PASSWORD}@postgres:5432/auth_db
+      JWT_SECRET: ${JWT_SECRET:?isi JWT_SECRET di file .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    healthcheck:
+      # image distroless tidak punya curl/sh, jadi biner server memeriksa dirinya sendiri
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # product-service dan web ditambahkan di tahap berikutnya.
+
+volumes:
+  pgdata:

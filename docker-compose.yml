@@ -53,7 +53,33 @@ services:
       timeout: 3s
       retries: 5
 
-  # product-service dan web ditambahkan di tahap berikutnya.
+  product-service:
+    build: ./product-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://postgres:${DB_PASSWORD}@postgres:5432/shop_db
+      # nama service dipakai sebagai host, bukan localhost (lihat panduan Bab 5.5)
+      AUTH_URL: http://auth-service:8080
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      # REDIS_ADDR sengaja BELUM diisi: cache dan rate limit dinyalakan di Tahap 4.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    volumes:
+      # gambar produk yang diunggah admin; tanpa volume, gambar hilang saat container dibuat ulang
+      - uploads:/data/uploads
+    healthcheck:
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # web (Next.js) ditambahkan di tahap berikutnya.
 
 volumes:
   pgdata:
+  uploads:

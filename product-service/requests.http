@@ -1,0 +1,124 @@
+# Pakai ekstensi "REST Client" di VS Code. Jalankan dari atas ke bawah.
+# Prasyarat: akun admin sudah dibuat (lihat README: "Menjadikan akun sebagai admin")
+# dan data contoh sudah diisi (seed.sql).
+
+@auth = http://localhost:8081
+@host = http://localhost:8082
+
+# Variabel diambil otomatis dari respons request bernama (# @name ...).
+# Penting: definisi variabel HARUS di sini (atas file), bukan di bawah body request,
+# karena baris apa pun di bawah body dianggap bagian dari body sampai bertemu "###".
+@adminToken = {{adminLogin.response.body.access_token}}
+@userToken = {{userLogin.response.body.access_token}}
+@newId = {{created.response.body.id}}
+
+### Login admin (ganti email/password sesuai akun yang Anda jadikan admin)
+# @name adminLogin
+POST {{auth}}/login
+Content-Type: application/json
+
+{ "email": "andi@example.com", "password": "rahasia123" }
+
+
+### Register dan login pelanggan biasa (untuk menguji 403)
+POST {{auth}}/register
+Content-Type: application/json
+
+{ "email": "budi@example.com", "password": "rahasia123" }
+
+###
+# @name userLogin
+POST {{auth}}/login
+Content-Type: application/json
+
+{ "email": "budi@example.com", "password": "rahasia123" }
+
+
+### ---------- PUBLIK ----------
+
+### Health
+GET {{host}}/health
+
+### Daftar produk (halaman 1, 12 per halaman)
+GET {{host}}/products
+
+### Pencarian
+GET {{host}}/products?q=jamu
+
+### Filter kategori + urut harga termurah
+GET {{host}}/products?category=madu&sort=price_asc
+
+### Paginasi
+GET {{host}}/products?page=2&limit=5
+
+### Kategori
+GET {{host}}/categories
+
+### Detail produk
+GET {{host}}/products/1
+
+### Produk tidak ada (harus 404)
+GET {{host}}/products/99999
+
+### ---------- ADMIN ----------
+
+### Tambah produk
+# @name created
+POST {{host}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Wedang Uwuh", "description": "Minuman rempah hangat.", "category": "jamu", "price": 20000, "stock": 25 }
+
+
+### Ubah produk
+PUT {{host}}/products/{{newId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "Wedang Uwuh Premium", "description": "Minuman rempah hangat.", "category": "jamu", "price": 22000, "stock": 20 }
+
+### Unggah gambar. Taruh file contoh.jpg di folder product-service/ (JPEG/PNG/WebP, maks 2 MB).
+POST {{host}}/products/{{newId}}/image
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=----TokoHerbal
+
+------TokoHerbal
+Content-Disposition: form-data; name="image"; filename="contoh.jpg"
+Content-Type: image/jpeg
+
+< ./contoh.jpg
+------TokoHerbal--
+
+### Hapus produk (204)
+DELETE {{host}}/products/{{newId}}
+Authorization: Bearer {{adminToken}}
+
+### ---------- PENOLAKAN YANG HARUS TERJADI ----------
+
+### Tanpa token (harus 401)
+POST {{host}}/products
+Content-Type: application/json
+
+{ "name": "X", "category": "jamu", "price": 1000, "stock": 1 }
+
+### Token pelanggan biasa (harus 403)
+POST {{host}}/products
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "X", "category": "jamu", "price": 1000, "stock": 1 }
+
+### Harga negatif (harus 400)
+POST {{host}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "X", "category": "jamu", "price": -1, "stock": 1 }
+
+### Field tak dikenal (harus 400)
+POST {{host}}/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "X", "category": "jamu", "price": 1000, "stock": 1, "id": 5 }

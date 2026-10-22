@@ -1,0 +1,202 @@
+# Keranjang dan pesanan. Pakai ekstensi "REST Client" di VS Code. Jalankan dari atas ke bawah.
+# Prasyarat: akun admin (andi) dan data contoh (seed.sql) sudah ada, seperti di Tahap 2.
+# Catatan: definisi variabel (@...) HARUS di atas file, bukan di bawah body request.
+
+@auth = http://localhost:8081
+@host = http://localhost:8082
+
+@adminToken = {{adminLogin.response.body.access_token}}
+@userToken = {{userLogin.response.body.access_token}}
+@user2Token = {{user2Login.response.body.access_token}}
+@orderId = {{orderFromCart.response.body.id}}
+@directId = {{orderDirect.response.body.id}}
+
+### ---------- LOGIN ----------
+
+### Admin
+# @name adminLogin
+POST {{auth}}/login
+Content-Type: application/json
+
+{ "email": "andi@example.com", "password": "rahasia123" }
+
+### Pelanggan 1 (budi, sudah dibuat di Tahap 2)
+# @name userLogin
+POST {{auth}}/login
+Content-Type: application/json
+
+{ "email": "budi@example.com", "password": "rahasia123" }
+
+### Pelanggan 2 (citra): register sekali, untuk menguji pesanan milik orang lain
+POST {{auth}}/register
+Content-Type: application/json
+
+{ "email": "citra@example.com", "password": "rahasia123" }
+
+###
+# @name user2Login
+POST {{auth}}/login
+Content-Type: application/json
+
+{ "email": "citra@example.com", "password": "rahasia123" }
+
+### ---------- KERANJANG (budi) ----------
+
+### Keranjang awal (kosong: items = [], bukan null)
+GET {{host}}/cart
+Authorization: Bearer {{userToken}}
+
+### Tambah produk 1 sebanyak 2
+PUT {{host}}/cart/items/1
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "qty": 2 }
+
+### Tambah produk 4 sebanyak 1
+PUT {{host}}/cart/items/4
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "qty": 1 }
+
+### Ubah jumlah produk 1 menjadi 3 (bukan menambah, tetapi mengganti)
+PUT {{host}}/cart/items/1
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "qty": 3 }
+
+### Hapus produk 4 dari keranjang
+DELETE {{host}}/cart/items/4
+Authorization: Bearer {{userToken}}
+
+### Produk tidak ada (harus 404)
+PUT {{host}}/cart/items/99999
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "qty": 1 }
+
+### qty 0 (harus 400)
+PUT {{host}}/cart/items/1
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "qty": 0 }
+
+### ---------- PESANAN ----------
+
+### Stok produk 1 SEBELUM memesan (catat angkanya)
+GET {{host}}/products/1
+
+### Pesan dari isi keranjang: body kosong. Keranjang otomatis dikosongkan.
+# @name orderFromCart
+POST {{host}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### Stok produk 1 SESUDAH memesan (harus turun 3)
+GET {{host}}/products/1
+
+### Keranjang sekarang kosong
+GET {{host}}/cart
+Authorization: Bearer {{userToken}}
+
+### Riwayat pesanan saya
+GET {{host}}/orders
+Authorization: Bearer {{userToken}}
+
+### Detail pesanan saya
+GET {{host}}/orders/{{orderId}}
+Authorization: Bearer {{userToken}}
+
+### Pesanan budi dilihat oleh citra (harus 404, bukan 403, agar id tidak bisa ditebak)
+GET {{host}}/orders/{{orderId}}
+Authorization: Bearer {{user2Token}}
+
+### Pesan langsung tanpa keranjang
+# @name orderDirect
+POST {{host}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "items": [ { "product_id": 2, "qty": 1 }, { "product_id": 3, "qty": 2 } ] }
+
+### Keranjang kosong lalu pesan (harus 400)
+POST {{host}}/orders
+Authorization: Bearer {{user2Token}}
+Content-Type: application/json
+
+{}
+
+### Melebihi stok (harus 409)
+POST {{host}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "items": [ { "product_id": 12, "qty": 99 } ] }
+
+### Produk tidak ada (harus 404)
+POST {{host}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "items": [ { "product_id": 99999, "qty": 1 } ] }
+
+### ---------- STATUS PESANAN ----------
+# Alur: pending -> paid -> shipped -> completed. Batal boleh saat pending atau paid.
+
+### Pelanggan mencoba menandai paid (harus 403)
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "status": "paid" }
+
+### Admin menandai paid (200)
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "paid" }
+
+### Admin menandai paid lagi (harus 409: sudah paid)
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "paid" }
+
+### Admin melompat ke completed (harus 409: harus lewat shipped)
+PATCH {{host}}/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "status": "completed" }
+
+### Pelanggan membatalkan pesanan langsungnya (pending -> cancelled, stok produk 2 dan 3 kembali)
+PATCH {{host}}/orders/{{directId}}/status
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "status": "cancelled" }
+
+### Cek stok produk 2 sudah kembali
+GET {{host}}/products/2
+
+### ---------- ADMIN ----------
+
+### Semua pesanan (admin)
+GET {{host}}/admin/orders
+Authorization: Bearer {{adminToken}}
+
+### Filter status
+GET {{host}}/admin/orders?status=paid
+Authorization: Bearer {{adminToken}}
+
+### Pelanggan mengakses daftar admin (harus 403)
+GET {{host}}/admin/orders
+Authorization: Bearer {{userToken}}

@@ -1,0 +1,6 @@
+.git
+.env
+*.exe
+*.md
+requests.http
+uploads/

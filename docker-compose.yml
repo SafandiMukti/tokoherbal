@@ -61,11 +61,17 @@ services:
       # nama service dipakai sebagai host, bukan localhost (lihat panduan Bab 5.5)
       AUTH_URL: http://auth-service:8080
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      # REDIS_ADDR sengaja BELUM diisi: cache dan rate limit dinyalakan di Tahap 4.
+      # Tahap 4: Redis dinyalakan. Nama service "redis" dipakai sebagai host.
+      # Hapus baris REDIS_ADDR untuk menjalankan tanpa cache dan rate limit.
+      REDIS_ADDR: redis:6379
+      # maksimal permintaan per IP per menit (di luar /health)
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
     depends_on:
       postgres:
         condition: service_healthy
       auth-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8082:8080"

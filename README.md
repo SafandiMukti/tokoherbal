@@ -11,7 +11,7 @@ Proyek belajar dan portofolio: Go, PostgreSQL, Redis, Docker, dan Next.js.
 - [x] Tahap 1: auth-service (register, login, refresh token, logout, verify)
 - [x] Tahap 2: product-service (CRUD, pencarian, paginasi, upload gambar)
 - [x] Tahap 3: keranjang, pesanan, transaksi stok
-- [ ] Tahap 4: Redis (cache, rate limit)
+- [x] Tahap 4: Redis (cache, rate limit)
 - [ ] Tahap 5: komunikasi antar service, 503, slog
 - [ ] Tahap 6: test dan CI
 - [ ] Tahap 7-8: frontend Next.js dan Docker penuh
@@ -139,3 +139,20 @@ node scripts/race-order.mjs EMAIL_ADMIN PASSWORD_ADMIN
 ```
 
 Contoh request siap pakai: `product-service/orders.http`.
+
+## Redis: cache dan rate limit (Tahap 4)
+
+- **Cache-aside** untuk `GET /products`, `GET /products/{id}`, dan `GET /categories`. Key berawalan `products:`, TTL 60 detik.
+  Log `cache HIT` / `cache MISS` muncul di `docker compose logs -f product-service`.
+- **Invalidasi**: tambah, ubah, hapus produk, unggah gambar, membuat pesanan, dan membatalkan pesanan menghapus semua key `products:*`.
+- **Rate limit**: maksimal `RATE_LIMIT_PER_MIN` (bawaan 60) permintaan per IP per menit, di luar `/health`. Lebih dari itu dijawab `429` dengan header `Retry-After`.
+- **Redis mati tidak mematikan aplikasi**: request tetap dilayani dari database (cache dilewati) dan rate limit dilewati.
+  `/health` menandai `"redis": "down"` tetapi tetap 200, karena Redis hanyalah optimasi.
+- Redis dibatasi `maxmemory 128mb` dengan kebijakan `allkeys-lru` (key paling lama tak terpakai dibuang saat penuh).
+
+Pembuktian otomatis:
+
+```bat
+node scripts/redis-check.mjs EMAIL_ADMIN PASSWORD_ADMIN
+node scripts/rate-limit-test.mjs
+```

@@ -148,6 +148,11 @@ Contoh request siap pakai: `product-service/orders.http`.
 - **Rate limit**: maksimal `RATE_LIMIT_PER_MIN` (bawaan 60) permintaan per IP per menit, di luar `/health`. Lebih dari itu dijawab `429` dengan header `Retry-After`.
 - **Redis mati tidak mematikan aplikasi**: request tetap dilayani dari database (cache dilewati) dan rate limit dilewati.
   `/health` menandai `"redis": "down"` tetapi tetap 200, karena Redis hanyalah optimasi.
+- **Circuit breaker + batas waktu keras (300 ms) untuk setiap operasi Redis** (`internal/breaker`). Tanpa ini, Redis yang mati
+  membuat tiap perintah menggantung belasan detik (nama host `redis` gagal di-resolve), satu request memanggil Redis 2-3 kali,
+  dan totalnya melewati `WriteTimeout` server (klien menerima "Empty reply"; `/health` jadi lambat dan container `unhealthy`).
+  Sekarang: tiga kegagalan berturut-turut membuka breaker, panggilan ke Redis ditolak instan selama 10 detik, lalu dicoba lagi satu per satu.
+  Ukuran: request pertama saat Redis mati sekitar 1 detik, berikutnya milidetik, `/health` tetap 200.
 - Redis dibatasi `maxmemory 128mb` dengan kebijakan `allkeys-lru` (key paling lama tak terpakai dibuang saat penuh).
 
 Pembuktian otomatis:
@@ -155,4 +160,13 @@ Pembuktian otomatis:
 ```bat
 node scripts/redis-check.mjs EMAIL_ADMIN PASSWORD_ADMIN
 node scripts/rate-limit-test.mjs
+```
+
+Uji Redis mati secara otomatis:
+
+```bat
+docker compose stop redis
+node scripts/redis-down-check.mjs
+docker compose start redis
+node scripts/redis-down-check.mjs --recover
 ```

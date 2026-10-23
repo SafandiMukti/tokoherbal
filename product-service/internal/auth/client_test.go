@@ -84,3 +84,38 @@ func TestVerifyTimeout(t *testing.T) {
 		t.Fatalf("timeout tidak bekerja, menunggu %v", time.Since(start))
 	}
 }
+
+func TestVerifyBreakerOpensAndRejectsFast(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	url := srv.URL
+	srv.Close()
+
+	c := NewClient(url, time.Second)
+	for i := 0; i < 3; i++ {
+		if _, err := c.Verify(context.Background(), "Bearer x"); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("err = %v", err)
+		}
+	}
+	start := time.Now()
+	_, err := c.Verify(context.Background(), "Bearer x")
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("err = %v, want ErrUnavailable", err)
+	}
+	if time.Since(start) > 50*time.Millisecond {
+		t.Fatalf("breaker terbuka seharusnya langsung menolak, butuh %v", time.Since(start))
+	}
+}
+
+func TestVerifyUnauthorizedDoesNotTripBreaker(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, time.Second)
+	for i := 0; i < 10; i++ {
+		if _, err := c.Verify(context.Background(), "Bearer x"); !errors.Is(err, ErrUnauthorized) {
+			t.Fatalf("panggilan %d: err = %v, want ErrUnauthorized", i, err)
+		}
+	}
+}

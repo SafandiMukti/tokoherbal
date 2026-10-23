@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"time"
 
+	"tokoherbal/product-service/internal/breaker"
 	"tokoherbal/product-service/internal/reqid"
 )
 
@@ -33,12 +34,21 @@ type Identity struct {
 type Client struct {
 	baseURL string
 	http    *http.Client
+	timeout time.Duration
+	br      *breaker.Breaker
 }
 
 // NewClient membuat klien dengan batas waktu per permintaan. Tanpa timeout,
 // satu auth-service yang lambat akan menahan semua request product-service.
 func NewClient(baseURL string, timeout time.Duration) *Client {
-	return &Client{baseURL: baseURL, http: &http.Client{Timeout: timeout}}
+	return &Client{
+		baseURL: baseURL,
+		http:    &http.Client{Timeout: timeout},
+		timeout: timeout,
+		// 3 kegagalan beruntun -> anggap mati 5 detik, request berikutnya
+		// langsung 503 tanpa menunggu timeout lagi.
+		br: breaker.New(3, 5*time.Second),
+	}
 }
 
 // Verify menerima nilai header Authorization utuh ("Bearer xxx").
@@ -47,6 +57,27 @@ func (c *Client) Verify(ctx context.Context, authHeader string) (Identity, error
 		return Identity{}, ErrUnauthorized
 	}
 
+	var id Identity
+	var verr error
+	// Hanya ErrUnavailable yang dihitung "gagal" oleh breaker. Token ditolak
+	// (401) berarti auth-service sehat, jadi fn mengembalikan nil untuknya.
+	err := c.br.Do(ctx, c.timeout+time.Second, func(ctx context.Context) error {
+		id, verr = c.verify(ctx, authHeader)
+		if errors.Is(verr, ErrUnavailable) {
+			return verr
+		}
+		return nil
+	})
+	switch {
+	case errors.Is(err, breaker.ErrOpen):
+		return Identity{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+	case err != nil:
+		return Identity{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
+	}
+	return id, verr
+}
+
+func (c *Client) verify(ctx context.Context, authHeader string) (Identity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/verify", nil)
 	if err != nil {
 		return Identity{}, err

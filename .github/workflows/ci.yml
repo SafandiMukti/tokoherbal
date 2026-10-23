@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, product-service]
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # versi dibaca dari go.mod, jadi tidak ada angka ganda yang bisa lupa diubah
+          go-version-file: ${{ matrix.service }}/go.mod
+          cache-dependency-path: ${{ matrix.service }}/go.sum
+
+      - name: Format (gofmt)
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "File belum diformat:"; echo "$out"; exit 1; fi
+
+      - name: go mod tidy tidak mengubah apa pun
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test (dengan race detector)
+        run: go test -race -count=1 ./...
+
+  docker:
+    name: Docker build (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: go
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, product-service]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t tokoherbal-${{ matrix.service }}:ci ./${{ matrix.service }}

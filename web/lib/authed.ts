@@ -1,5 +1,6 @@
 // Panggilan ke product-service yang membawa access token pengguna (dari cookie).
 import { cookies } from "next/headers";
+import { internalHeaders } from "./api";
 import { ACCESS_COOKIE, REFRESH_COOKIE, decodeToken, type Session } from "./session";
 
 const SERVER_BASE = process.env.PRODUCT_API_URL ?? "http://localhost:8082";
@@ -34,6 +35,7 @@ export async function authedRequest<T>(method: string, path: string, body?: unkn
       method,
       headers: {
         Authorization: `Bearer ${token}`,
+        ...internalHeaders(),
         // untuk FormData, Content-Type (beserta boundary) diisi otomatis oleh fetch
         ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
       },

@@ -35,6 +35,11 @@ type Deps struct {
 	RateLimiter     Counter // nil = tanpa rate limit
 	RateLimitPerMin int
 	TrustProxy      bool
+
+	// InternalToken: rahasia bersama dengan server web (Next.js). Panggilan server-ke-server yang
+	// membawanya lewat header X-Internal-Token dikecualikan dari rate limit, karena dari sisi
+	// product-service semua pengunjung web terlihat berasal dari satu container. Kosong = tidak ada pengecualian.
+	InternalToken string
 }
 
 type Handler struct {
@@ -73,7 +78,7 @@ func (h *Handler) Router(corsOrigin string) http.Handler {
 	mux.HandleFunc("PATCH /orders/{id}/status", h.authed(false, h.changeOrderStatus))
 
 	var handler http.Handler = mux
-	handler = rateLimit(h.RateLimiter, h.RateLimitPerMin, h.TrustProxy, h.Log)(handler)
+	handler = rateLimit(h.RateLimiter, h.RateLimitPerMin, h.TrustProxy, h.InternalToken, h.Log)(handler)
 	handler = cors(corsOrigin)(handler)
 	handler = logging(h.Log)(handler)
 	handler = recoverer(h.Log)(handler)

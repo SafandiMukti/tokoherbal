@@ -47,6 +47,12 @@ func run(log *slog.Logger, port string) error {
 		return errors.New("AUTH_URL belum diisi (contoh: http://auth-service:8080)")
 	}
 
+	// Opsional. Bila diisi, harus cukup panjang agar tidak mudah ditebak.
+	internalToken := os.Getenv("INTERNAL_TOKEN")
+	if internalToken != "" && len(internalToken) < 16 {
+		return errors.New("INTERNAL_TOKEN minimal 16 karakter (atau kosongkan untuk mematikan fitur)")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -90,6 +96,7 @@ func run(log *slog.Logger, port string) error {
 		RateLimiter:     limiter,
 		RateLimitPerMin: getenvInt("RATE_LIMIT_PER_MIN", 60),
 		TrustProxy:      getenv("TRUST_PROXY", "false") == "true",
+		InternalToken:   internalToken,
 	})
 
 	srv := &http.Server{

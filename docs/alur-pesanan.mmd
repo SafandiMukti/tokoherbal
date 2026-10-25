@@ -1,0 +1,21 @@
+sequenceDiagram
+    actor U as Pelanggan
+    participant W as web (Next.js)
+    participant P as product-service
+    participant A as auth-service
+    participant D as PostgreSQL
+    U->>W: klik "Pesan sekarang"
+    W->>P: POST /orders (Bearer token)
+    P->>A: GET /verify
+    A-->>P: user_id, role
+    P->>D: BEGIN
+    P->>D: UPDATE products SET stock = stock - qty WHERE id = ? AND stock >= qty
+    alt stok cukup
+        P->>D: INSERT orders dan order_items, kosongkan keranjang
+        P->>D: COMMIT
+        P-->>W: 201 Created
+    else stok kurang
+        P->>D: ROLLBACK
+        P-->>W: 409 stok tidak mencukupi
+    end
+    W-->>U: halaman pesanan atau pesan galat

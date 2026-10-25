@@ -79,6 +79,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // lewati berkas statis dan gambar
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // lewati berkas statis, gambar, dan healthcheck
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health).*)"],
 };

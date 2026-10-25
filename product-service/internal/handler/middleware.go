@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"log/slog"
 	"net"
@@ -128,13 +129,17 @@ type Counter interface {
 // rateLimit membatasi jumlah permintaan per IP per menit (fixed window).
 // Bila Redis bermasalah, permintaan DIIZINKAN: rate limit adalah pengaman
 // tambahan, bukan alasan untuk menolak pengguna yang sah.
-func rateLimit(c Counter, perMinute int, trustProxy bool, log *slog.Logger) func(http.Handler) http.Handler {
+func rateLimit(c Counter, perMinute int, trustProxy bool, internalToken string, log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if c == nil || perMinute <= 0 {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/health" || r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if isInternal(r, internalToken) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -152,6 +157,17 @@ func rateLimit(c Counter, perMinute int, trustProxy bool, log *slog.Logger) func
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isInternal: apakah permintaan membawa token internal yang benar. Token kosong di konfigurasi
+// berarti fitur mati, jadi header kosong tidak pernah lolos. Perbandingan constant-time agar
+// token tidak bisa ditebak lewat selisih waktu.
+func isInternal(r *http.Request, token string) bool {
+	if token == "" {
+		return false
+	}
+	got := r.Header.Get("X-Internal-Token")
+	return got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(token)) == 1
 }
 
 // clientIP mengambil alamat klien. X-Forwarded-For hanya dipercaya bila service

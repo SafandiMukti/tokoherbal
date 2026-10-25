@@ -66,6 +66,10 @@ services:
       REDIS_ADDR: redis:6379
       # maksimal permintaan per IP per menit (di luar /health)
       RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
+      # Rahasia bersama dengan web. Dari sisi product-service semua pengunjung web terlihat berasal dari
+      # satu IP (container web), jadi panggilan server-ke-server yang membawa token ini tidak dibatasi.
+      # Akses langsung ke port 8082 tanpa token tetap dibatasi.
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?isi INTERNAL_TOKEN di file .env (minimal 16 karakter)}
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +88,32 @@ services:
       timeout: 3s
       retries: 5
 
-  # web (Next.js) ditambahkan di tahap berikutnya.
+  web:
+    build: ./web
+    restart: unless-stopped
+    environment:
+      # Alamat yang dipakai SERVER Next.js (di dalam jaringan Docker): nama service, bukan localhost.
+      PRODUCT_API_URL: http://product-service:8080
+      AUTH_API_URL: http://auth-service:8080
+      # Alamat yang dibuka BROWSER di laptop (hanya untuk gambar produk): port yang dipublikasikan di atas.
+      PUBLIC_PRODUCT_URL: http://localhost:8082
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?isi INTERNAL_TOKEN di file .env (minimal 16 karakter)}
+      # false karena laptop memakai http://localhost. Isi true bila nanti dilayani lewat HTTPS.
+      COOKIE_SECURE: "false"
+    depends_on:
+      product-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      # image alpine punya wget (busybox); endpoint tidak memanggil service lain
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:

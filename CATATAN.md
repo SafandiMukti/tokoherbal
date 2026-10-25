@@ -11,3 +11,7 @@ Format: tanggal, gejala (pesan error), penyebab, solusi, apa yang dipelajari.
 - Dipelajari: `docker` hanyalah klien. Yang menjalankan container adalah daemon.
 
 ## (tambahkan catatan berikutnya di bawah ini)
+
+## user 
+- topandim@gmail.com pass: Topandim2603 (admin)
+- plenger@gmail.com pass: plenger123

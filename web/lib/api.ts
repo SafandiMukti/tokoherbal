@@ -28,7 +28,16 @@ export type ListQuery = {
 };
 
 const SERVER_BASE = process.env.PRODUCT_API_URL ?? "http://localhost:8082";
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_PRODUCT_URL ?? "http://localhost:8082";
+// Alamat gambar yang dibuka BROWSER. Sengaja bukan NEXT_PUBLIC_*: variabel itu ditanam saat build,
+// sedangkan ini dibaca saat berjalan sehingga satu image Docker bisa dipakai di lingkungan mana pun.
+const PUBLIC_BASE = process.env.PUBLIC_PRODUCT_URL ?? "http://localhost:8082";
+
+// Panggilan server-ke-server dikecualikan dari rate limit per-IP di product-service
+// (dari sudut pandangnya semua pengunjung web terlihat sebagai satu IP: container web ini).
+export function internalHeaders(): Record<string, string> {
+  const t = process.env.INTERNAL_TOKEN;
+  return t ? { "X-Internal-Token": t } : {};
+}
 
 export class ApiError extends Error {
   constructor(
@@ -44,6 +53,7 @@ async function get<T>(path: string): Promise<T> {
   try {
     // no-store: cache sudah ditangani Redis di product-service, jangan dobel di sini
     res = await fetch(SERVER_BASE + path, {
+      headers: internalHeaders(),
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     });

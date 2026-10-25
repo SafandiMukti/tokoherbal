@@ -1,0 +1,10 @@
+flowchart LR
+    B["Browser"] -->|"HTML, aksi form"| W["web<br/>Next.js :3000"]
+    B -.->|"gambar produk"| P
+    W -->|"login, refresh"| A["auth-service<br/>Go :8081"]
+    W -->|"produk, keranjang, pesanan<br/>+ X-Internal-Token"| P["product-service<br/>Go :8082"]
+    P -->|"GET /verify"| A
+    A --> AD[("PostgreSQL<br/>auth_db")]
+    P --> SD[("PostgreSQL<br/>shop_db")]
+    P --> R[("Redis<br/>cache dan rate limit")]
+    P --- U[["volume uploads<br/>gambar produk"]]

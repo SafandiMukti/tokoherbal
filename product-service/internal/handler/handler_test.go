@@ -267,6 +267,76 @@ func TestRateLimit(t *testing.T) {
 	}
 }
 
+// newEnvToken seperti newEnv, tetapi dengan InternalToken diisi.
+func newEnvToken(t *testing.T, perMin int, token string) *env {
+	t.Helper()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ps, cache := fakes.NewProductStore(), fakes.NewCache()
+	up, err := upload.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := fakes.NewCounter()
+	h := New(Deps{
+		Products:        service.NewProductService(ps, cache, log),
+		Orders:          service.NewOrderService(fakes.NewOrderStore(), fakes.NewCartStore(), cache, log),
+		Verifier:        fakeVerifier{},
+		Uploads:         up,
+		Log:             log,
+		PingDB:          func(context.Context) error { return nil },
+		RateLimiter:     counter,
+		RateLimitPerMin: perMin,
+		InternalToken:   token,
+	})
+	return &env{srv: h.Router("http://localhost:3000"), products: ps, counter: counter, uploads: up}
+}
+
+func (e *env) getWithInternal(header string) int {
+	req := httptest.NewRequest("GET", "/products", nil)
+	req.RemoteAddr = "203.0.113.5:4444"
+	if header != "" {
+		req.Header.Set("X-Internal-Token", header)
+	}
+	rec := httptest.NewRecorder()
+	e.srv.ServeHTTP(rec, req)
+	return rec.Code
+}
+
+func TestRateLimitInternalTokenBypass(t *testing.T) {
+	const secret = "rahasia-internal-1234567890"
+	e := newEnvToken(t, 2, secret)
+
+	// token benar: tidak pernah kena batas, jauh melebihi 2 per menit
+	for i := 0; i < 10; i++ {
+		if code := e.getWithInternal(secret); code != 200 {
+			t.Fatalf("token benar, request %d: %d", i, code)
+		}
+	}
+	// tanpa token dan token salah tetap dibatasi (dan token benar tadi tidak memakai jatah IP yang sama)
+	for _, h := range []string{"", "salah", secret + "x", secret[:len(secret)-1]} {
+		e2 := newEnvToken(t, 2, secret)
+		e2.getWithInternal(h)
+		e2.getWithInternal(h)
+		if code := e2.getWithInternal(h); code != http.StatusTooManyRequests {
+			t.Fatalf("header %q seharusnya tetap dibatasi, dapat %d", h, code)
+		}
+	}
+}
+
+func TestRateLimitNoInternalTokenConfigured(t *testing.T) {
+	// fitur mati: header apa pun, termasuk kosong, tidak boleh mengecualikan
+	e := newEnvToken(t, 2, "")
+	for _, h := range []string{"", "apa-saja"} {
+		e2 := newEnvToken(t, 2, "")
+		e2.getWithInternal(h)
+		e2.getWithInternal(h)
+		if code := e2.getWithInternal(h); code != http.StatusTooManyRequests {
+			t.Fatalf("header %q, fitur mati, dapat %d", h, code)
+		}
+	}
+	_ = e
+}
+
 func TestRateLimitRedisDownAllowsRequests(t *testing.T) {
 	e := newEnv(t, 1)
 	e.counter.Err = errors.New("redis down")

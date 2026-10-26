@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { authedRequest, type AuthedResult } from "@/lib/authed";
+import { authedRequest, getSession, type AuthedResult } from "@/lib/authed";
 import type { Cart, Order, ShopState } from "@/lib/types";
 
 const MAX_QTY = 99; // sama dengan batas di product-service
@@ -18,6 +18,14 @@ function fail<T>(r: AuthedResult<T>, next: string): ShopState | null {
   return { error: r.message };
 }
 
+const ADMIN_MSG = "Akun admin tidak dapat berbelanja. Gunakan akun pelanggan.";
+
+// Admin mengelola toko, bukan berbelanja. API juga menolak (403); ini agar pesannya jelas
+// dan tidak ada permintaan yang sia-sia.
+async function adminBlocked(): Promise<boolean> {
+  return (await getSession())?.role === "admin";
+}
+
 function intField(form: FormData, name: string): number {
   const n = Number(form.get(name));
   return Number.isInteger(n) ? n : NaN;
@@ -26,6 +34,7 @@ function intField(form: FormData, name: string): number {
 // "Tambah ke keranjang" menambah ke jumlah yang sudah ada. API hanya punya PUT (jumlah mutlak),
 // jadi baca keranjang dulu lalu tulis jumlah barunya.
 export async function addToCartAction(_prev: ShopState, form: FormData): Promise<ShopState> {
+  if (await adminBlocked()) return { error: ADMIN_MSG };
   const productId = intField(form, "product_id");
   const qty = intField(form, "qty");
   if (!(productId > 0) || !(qty >= 1)) return { error: "Jumlah tidak valid." };
@@ -45,6 +54,7 @@ export async function addToCartAction(_prev: ShopState, form: FormData): Promise
 }
 
 export async function setCartQtyAction(_prev: ShopState, form: FormData): Promise<ShopState> {
+  if (await adminBlocked()) return { error: ADMIN_MSG };
   const productId = intField(form, "product_id");
   const qty = intField(form, "qty");
   if (!(productId > 0) || !(qty >= 1 && qty <= MAX_QTY)) return { error: `Jumlah harus 1 sampai ${MAX_QTY}.` };
@@ -57,6 +67,7 @@ export async function setCartQtyAction(_prev: ShopState, form: FormData): Promis
 }
 
 export async function removeCartItemAction(_prev: ShopState, form: FormData): Promise<ShopState> {
+  if (await adminBlocked()) return { error: ADMIN_MSG };
   const productId = intField(form, "product_id");
   if (!(productId > 0)) return { error: "Produk tidak valid." };
   const r = await authedRequest<Cart>("DELETE", `/cart/items/${productId}`);
@@ -67,6 +78,7 @@ export async function removeCartItemAction(_prev: ShopState, form: FormData): Pr
 }
 
 export async function checkoutAction(): Promise<ShopState> {
+  if (await adminBlocked()) return { error: ADMIN_MSG };
   // body kosong = pesan seluruh isi keranjang (keranjang dikosongkan oleh server)
   const r = await authedRequest<Order>("POST", "/orders", {});
   const e = fail(r, "/keranjang");
@@ -76,6 +88,7 @@ export async function checkoutAction(): Promise<ShopState> {
 }
 
 export async function cancelOrderAction(_prev: ShopState, form: FormData): Promise<ShopState> {
+  if (await adminBlocked()) return { error: ADMIN_MSG };
   const id = intField(form, "order_id");
   if (!(id > 0)) return { error: "Pesanan tidak valid." };
   const r = await authedRequest<Order>("PATCH", `/orders/${id}/status`, { status: "cancelled" });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "./Icon";
 
 export function Pagination({
   page,
@@ -26,11 +27,25 @@ export function Pagination({
 
   return (
     <nav className="pagination" aria-label="Halaman">
-      {page > 1 ? <Link href={href(page - 1)}>← Sebelumnya</Link> : <span />}
-      <span>
+      {page > 1 ? (
+        <Link href={href(page - 1)}>
+          <Icon name="chevron-left" size={18} />
+          Sebelumnya
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="muted">
         Halaman {page} dari {pages}
       </span>
-      {page < pages ? <Link href={href(page + 1)}>Berikutnya →</Link> : <span />}
+      {page < pages ? (
+        <Link href={href(page + 1)}>
+          Berikutnya
+          <Icon name="chevron-right" size={18} />
+        </Link>
+      ) : (
+        <span />
+      )}
     </nav>
   );
 }

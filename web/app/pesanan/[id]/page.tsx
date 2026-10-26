@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cancelOrderAction } from "@/app/actions/shop";
 import { ActionForm } from "@/components/ActionForm";
+import { Icon } from "@/components/Icon";
+import { ServiceDown } from "@/components/ServiceDown";
 import { authedGet, getSession, hasPendingRefresh } from "@/lib/authed";
 import { formatDate, formatRupiah, statusLabel } from "@/lib/format";
 import type { Order } from "@/lib/types";
@@ -21,34 +23,30 @@ export default async function OrderPage({
   const here = `/pesanan/${n}`;
   const session = await getSession();
   if (!session) {
-    if (await hasPendingRefresh()) {
-      return (
-        <p className="notice" role="alert">
-          Layanan login sedang tidak tersedia. Sesi Anda aman, coba muat ulang beberapa saat lagi.
-        </p>
-      );
-    }
+    if (await hasPendingRefresh()) return <ServiceDown title="Pesanan" />;
     redirect(`/login?next=${encodeURIComponent(here)}`);
   }
+  if (session.role === "admin") redirect("/admin/pesanan");
 
   const res = await authedGet<Order>(`/orders/${n}`);
   if (!res.ok) {
     if (res.status === 401) redirect(`/login?next=${encodeURIComponent(here)}`);
     if (res.status === 404) notFound(); // juga untuk pesanan milik orang lain: tidak bocor
-    return (
-      <p className="notice" role="alert">
-        {res.message}
-      </p>
-    );
+    return <ServiceDown title="Pesanan" message={res.message} />;
   }
   const o = res.data;
   const cancellable = o.status === "pending" || o.status === "paid";
 
+  const flow = ["pending", "paid", "shipped", "completed"];
+  const flowLabel = ["Dipesan", "Dibayar", "Dikirim", "Selesai"];
+  const at = flow.indexOf(o.status);
+
   return (
-    <>
-      <p>
-        <Link href="/pesanan">← Semua pesanan</Link>
-      </p>
+    <div className="container page">
+      <Link href="/pesanan" className="crumb">
+        <Icon name="chevron-left" size={18} />
+        Semua pesanan
+      </Link>
       {baru && (
         <p className="notice ok" role="status">
           Pesanan berhasil dibuat. Terima kasih!
@@ -59,10 +57,18 @@ export default async function OrderPage({
         <span className={`status ${o.status}`}>{statusLabel(o.status)}</span>{" "}
         <span className="muted">{formatDate(o.created_at)}</span>
       </p>
-      {o.status === "cancelled" && (
+      {o.status === "cancelled" ? (
         <p className="notice" role="status">
           Pesanan ini dibatalkan dan stok produk sudah dikembalikan.
         </p>
+      ) : (
+        <ol className="steps" aria-label="Tahap pesanan">
+          {flow.map((st, idx) => (
+            <li key={st} className={idx < at ? "done" : idx === at ? "current" : ""} aria-current={idx === at ? "step" : undefined}>
+              {flowLabel[idx]}
+            </li>
+          ))}
+        </ol>
       )}
       <ul className="order-items">
         {o.items.map((i) => (
@@ -74,7 +80,7 @@ export default async function OrderPage({
           </li>
         ))}
       </ul>
-      <p className="cart-total">
+      <p className="order-total-line cart-total">
         Total: <strong>{formatRupiah(o.total)}</strong>
       </p>
       {cancellable && (
@@ -85,6 +91,6 @@ export default async function OrderPage({
           </button>
         </ActionForm>
       )}
-    </>
+    </div>
   );
 }

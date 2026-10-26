@@ -1,3 +1,4 @@
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteProductAction, updateProductAction, uploadImageAction } from "@/app/actions/admin";
@@ -36,9 +37,10 @@ export default async function EditProduct({
 
   return (
     <section className="narrow-wide">
-      <p>
-        <Link href="/admin/produk">← Kelola produk</Link>
-      </p>
+      <Link href="/admin/produk" className="crumb">
+        <Icon name="chevron-left" size={18} />
+        Kelola produk
+      </Link>
       <h1>Ubah produk #{product.id}</h1>
       {baru && (
         <p className="notice ok" role="status">
@@ -51,7 +53,7 @@ export default async function EditProduct({
         <button type="submit">Simpan perubahan</button>
       </ActionForm>
 
-      <h2>Gambar</h2>
+      <h2>Gambar produk</h2>
       <div className="image-admin">
         <ProductImage product={product} />
         <ActionForm action={uploadImageAction}>

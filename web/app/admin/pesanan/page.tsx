@@ -50,8 +50,7 @@ export default async function AdminOrders({ searchParams }: { searchParams: SP }
   return (
     <>
       <div className="row-between">
-        <h1>Semua pesanan</h1>
-        <Link href="/admin/produk">← Kelola produk</Link>
+        <h1>Pesanan masuk</h1>
       </div>
       <nav className="chips" aria-label="Filter status">
         <Link href="/admin/pesanan" className={status === "" ? "active" : ""}>
@@ -69,7 +68,10 @@ export default async function AdminOrders({ searchParams }: { searchParams: SP }
           {res.status === 403 ? "Akun Anda tidak punya akses admin." : res.message}
         </p>
       ) : res.data.length === 0 ? (
-        <p className="muted">Tidak ada pesanan.</p>
+        <div className="empty">
+          <h2>Tidak ada pesanan</h2>
+          <p className="muted">{status ? "Belum ada pesanan dengan status ini." : "Pesanan pelanggan akan muncul di sini."}</p>
+        </div>
       ) : (
         <>
           <div className="table-wrap">
@@ -114,9 +116,9 @@ export default async function AdminOrders({ searchParams }: { searchParams: SP }
           </table>
         </div>
           <nav className="pagination" aria-label="Halaman">
-            {page > 1 ? <Link href={href(page - 1)}>← Sebelumnya</Link> : <span />}
+            {page > 1 ? <Link href={href(page - 1)}>Sebelumnya</Link> : <span />}
             <span>Halaman {page}</span>
-            {res.data.length === LIMIT ? <Link href={href(page + 1)}>Berikutnya →</Link> : <span />}
+            {res.data.length === LIMIT ? <Link href={href(page + 1)}>Berikutnya</Link> : <span />}
           </nav>
         </>
       )}

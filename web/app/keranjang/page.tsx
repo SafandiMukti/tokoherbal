@@ -1,95 +1,93 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { checkoutAction, removeCartItemAction, setCartQtyAction } from "@/app/actions/shop";
 import { ActionForm } from "@/components/ActionForm";
+import { CartThumb } from "@/components/CartThumb";
+import { QtyInput } from "@/components/QtyInput";
+import { ServiceDown } from "@/components/ServiceDown";
 import { authedGet, getSession, hasPendingRefresh } from "@/lib/authed";
-import { imageSrc } from "@/lib/api";
 import { formatRupiah } from "@/lib/format";
 import type { Cart } from "@/lib/types";
+
+export const metadata: Metadata = { title: "Keranjang" };
 
 export default async function CartPage() {
   const session = await getSession();
   if (!session) {
-    if (await hasPendingRefresh()) return <Unavailable />;
+    if (await hasPendingRefresh()) return <ServiceDown title="Keranjang" />;
     redirect("/login?next=/keranjang");
   }
+  if (session.role === "admin") redirect("/admin/pesanan"); // admin tidak berbelanja
 
   const cart = await authedGet<Cart>("/cart");
   if (!cart.ok) {
     if (cart.status === 401) redirect("/login?next=/keranjang");
-    return <Unavailable message={cart.message} />;
+    return <ServiceDown title="Keranjang" message={cart.message} />;
   }
   const { items, total } = cart.data;
   const problem = items.find((i) => i.qty > i.stock);
+  const count = items.reduce((n, i) => n + i.qty, 0);
 
   return (
-    <>
+    <div className="container page">
       <h1>Keranjang</h1>
       {items.length === 0 ? (
-        <p className="muted">
-          Keranjang masih kosong. <Link href="/">Lihat produk</Link>
-        </p>
+        <div className="empty">
+          <h2>Keranjang masih kosong</h2>
+          <p className="muted">Pilih produk yang kamu suka, lalu taruh di sini.</p>
+          <Link href="/" className="btn">
+            Lihat produk
+          </Link>
+        </div>
       ) : (
-        <>
+        <div className="cart-layout">
           <ul className="cart-list">
             {items.map((i) => (
               <li key={i.product_id} className="cart-row">
-                {i.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="thumb" src={imageSrc(i.image_url)} alt="" />
-                ) : (
-                  <div className="thumb placeholder" aria-hidden="true">🌿</div>
-                )}
+                <CartThumb imageUrl={i.image_url} name={i.name} />
                 <div className="cart-info">
                   <Link href={`/products/${i.product_id}`}>{i.name}</Link>
-                  <div className="muted">{formatRupiah(i.price)} · stok {i.stock}</div>
-                  {i.qty > i.stock && (
-                    <div className="warn">Jumlah melebihi stok. Kurangi sebelum memesan.</div>
-                  )}
+                  <div className="muted">
+                    {formatRupiah(i.price)} per buah, stok {i.stock}
+                  </div>
+                  {i.qty > i.stock && <div className="warn">Jumlah melebihi stok. Kurangi sebelum memesan.</div>}
                 </div>
-                <ActionForm action={setCartQtyAction} className="inline">
-                  <input type="hidden" name="product_id" value={i.product_id} />
-                  <input
-                    type="number"
-                    name="qty"
-                    defaultValue={i.qty}
-                    min={1}
-                    max={99}
-                    aria-label={`Jumlah ${i.name}`}
-                    required
-                  />
-                  <button type="submit" className="secondary">Ubah</button>
-                </ActionForm>
-                <strong className="subtotal">{formatRupiah(i.subtotal)}</strong>
-                <ActionForm action={removeCartItemAction} className="inline">
-                  <input type="hidden" name="product_id" value={i.product_id} />
-                  <button type="submit" className="link-button">Hapus</button>
-                </ActionForm>
+                <div className="cart-edit">
+                  <ActionForm action={setCartQtyAction}>
+                    <input type="hidden" name="product_id" value={i.product_id} />
+                    <QtyInput key={i.qty} label={`Jumlah ${i.name}`} defaultValue={i.qty} max={99} />
+                    <button type="submit" className="secondary small">
+                      Ubah
+                    </button>
+                  </ActionForm>
+                </div>
+                <div className="cart-sub">
+                  <strong className="subtotal">{formatRupiah(i.subtotal)}</strong>
+                  <ActionForm action={removeCartItemAction}>
+                    <input type="hidden" name="product_id" value={i.product_id} />
+                    <button type="submit" className="link-button">
+                      Hapus
+                    </button>
+                  </ActionForm>
+                </div>
               </li>
             ))}
           </ul>
-          <p className="cart-total">
-            Total: <strong>{formatRupiah(total)}</strong>
-          </p>
-          <ActionForm action={checkoutAction}>
-            <button type="submit" disabled={Boolean(problem)}>
-              Pesan sekarang
-            </button>
-          </ActionForm>
-          <p className="muted">Pembayaran disimulasikan: admin yang menandai pesanan sebagai dibayar.</p>
-        </>
+          <aside className="summary" aria-label="Ringkasan belanja">
+            <h2>Ringkasan</h2>
+            <p className="cart-total">
+              Total ({count} barang): <strong>{formatRupiah(total)}</strong>
+            </p>
+            <ActionForm action={checkoutAction}>
+              <button type="submit" disabled={Boolean(problem)}>
+                Pesan sekarang
+              </button>
+            </ActionForm>
+            <p className="small-print">Pembayaran disimulasikan: admin yang menandai pesanan sebagai dibayar.</p>
+          </aside>
+        </div>
       )}
-    </>
-  );
-}
-
-function Unavailable({ message }: { message?: string }) {
-  return (
-    <>
-      <h1>Keranjang</h1>
-      <p className="notice" role="alert">
-        {message ?? "Layanan login sedang tidak tersedia. Sesi Anda aman, coba muat ulang beberapa saat lagi."}
-      </p>
-    </>
+    </div>
   );
 }

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/figtree";
+import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TokoHerbal",
-  description: "Toko produk herbal: jamu, madu, dan rempah pilihan.",
+  title: { default: "TokoHerbal", template: "%s | TokoHerbal" },
+  description: "Jamu, madu, minyak, dan perawatan herbal. Cari, taruh di keranjang, pesan.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -12,8 +15,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id">
       <body>
         <Header />
-        <main className="container">{children}</main>
-        <footer className="site-footer">Proyek portofolio · Go, PostgreSQL, Redis, Next.js</footer>
+        <main>{children}</main>
+        <Footer />
       </body>
     </html>
   );

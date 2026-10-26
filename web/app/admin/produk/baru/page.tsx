@@ -1,3 +1,4 @@
+import { Icon } from "@/components/Icon";
 import Link from "next/link";
 import { createProductAction } from "@/app/actions/admin";
 import { ActionForm } from "@/components/ActionForm";
@@ -9,9 +10,10 @@ export default async function NewProduct() {
   if (blocked) return blocked;
   return (
     <section className="narrow-wide">
-      <p>
-        <Link href="/admin/produk">← Kelola produk</Link>
-      </p>
+      <Link href="/admin/produk" className="crumb">
+        <Icon name="chevron-left" size={18} />
+        Kelola produk
+      </Link>
       <h1>Tambah produk</h1>
       <ActionForm action={createProductAction}>
         <ProductFields />

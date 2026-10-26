@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { loginAction } from "@/app/actions/auth";
+import { AuthShell } from "@/components/AuthShell";
 import { AuthForm } from "@/components/AuthForm";
 import { getSession } from "@/lib/authed";
 import { safeNext } from "@/lib/session";
@@ -10,12 +11,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const target = safeNext(next);
   if (await getSession()) redirect(target);
   return (
-    <section className="narrow">
-      <h1>Masuk</h1>
+    <AuthShell title="Masuk">
       <AuthForm action={loginAction} mode="login" next={target} />
       <p className="muted">
         Belum punya akun? <Link href="/register">Daftar</Link>
       </p>
-    </section>
+    </AuthShell>
   );
 }

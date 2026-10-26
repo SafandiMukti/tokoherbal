@@ -302,6 +302,50 @@ func (e *env) getWithInternal(header string) int {
 	return rec.Code
 }
 
+// Admin mengelola toko dan tidak berbelanja: keranjang dan pesanan baru ditolak (403),
+// tetapi admin tetap boleh melihat dan mengubah status pesanan pelanggan.
+func TestAdminCannotShop(t *testing.T) {
+	e := newEnv(t, 0)
+	// fake store kosong; produk dibuat lewat API seperti di tes lain (id pertama = 1)
+	if rec := e.do("POST", "/products", "admin", validProduct); rec.Code != 201 {
+		t.Fatalf("membuat produk = %d: %s", rec.Code, rec.Body.String())
+	}
+	before, err := e.products.Get(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct{ method, path, body string }{
+		{"GET", "/cart", ""},
+		{"PUT", "/cart/items/1", `{"qty":1}`},
+		{"DELETE", "/cart/items/1", ""},
+		{"POST", "/orders", `{"items":[{"product_id":1,"qty":1}]}`},
+		{"GET", "/orders", ""},
+	} {
+		if rec := e.do(c.method, c.path, "admin", c.body); rec.Code != 403 {
+			t.Errorf("admin %s %s = %d, want 403", c.method, c.path, rec.Code)
+		}
+	}
+	// stok tidak berubah: penolakan terjadi sebelum menyentuh data
+	if p, _ := e.products.Get(context.Background(), 1); p.Stock != before.Stock {
+		t.Errorf("stok = %d, want %d", p.Stock, before.Stock)
+	}
+
+	// pelanggan tetap bisa; admin tetap bisa mengelola pesanan pelanggan itu
+	if rec := e.do("POST", "/orders", "user", `{"items":[{"product_id":1,"qty":1}]}`); rec.Code != 201 {
+		t.Fatalf("pelanggan memesan = %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec := e.do("PATCH", "/orders/1/status", "admin", `{"status":"paid"}`); rec.Code != 200 {
+		t.Errorf("admin menandai dibayar = %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec := e.do("GET", "/admin/orders", "admin", ""); rec.Code != 200 {
+		t.Errorf("admin melihat semua pesanan = %d", rec.Code)
+	}
+	if rec := e.do("GET", "/orders/1", "admin", ""); rec.Code != 200 {
+		t.Errorf("admin melihat detail pesanan = %d", rec.Code)
+	}
+}
+
 func TestRateLimitInternalTokenBypass(t *testing.T) {
 	const secret = "rahasia-internal-1234567890"
 	e := newEnvToken(t, 2, secret)

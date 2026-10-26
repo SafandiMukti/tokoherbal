@@ -308,6 +308,14 @@ npm install
 npm run dev
 ```
 
+## Tampilan dan aturan admin (Tahap 11)
+
+- **Tampilan**: tema "rak jamu". Kategori adalah botol di rak pada beranda; ilustrasi botol yang sama dipakai sebagai gambar produk bila belum ada foto. Font Bricolage Grotesque dan Figtree dibundel lokal (tanpa Google Fonts), tema terang saja.
+- **Admin tidak berbelanja.** Akun admin mengelola toko, jadi tidak punya keranjang atau pesanan pribadi.
+  - API: `GET/PUT/DELETE /cart...`, `POST /orders`, dan `GET /orders` membalas **403** untuk admin (`TestAdminCannotShop`).
+  - UI: menu admin hanya *Kelola produk* dan *Pesanan masuk*; di halaman produk tombol beli diganti *Ubah produk*; `/keranjang`, `/pesanan`, `/pesanan/{id}` dialihkan ke `/admin/pesanan`.
+  - Admin tetap boleh melihat semua pesanan dan mengubah statusnya.
+
 ## Keterbatasan yang diketahui
 
 - Pembayaran disimulasikan (admin menandai `paid`); tidak ada payment gateway.

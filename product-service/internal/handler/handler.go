@@ -68,12 +68,14 @@ func (h *Handler) Router(corsOrigin string) http.Handler {
 	mux.HandleFunc("POST /products/{id}/image", h.authed(true, h.uploadImage))
 	mux.HandleFunc("GET /admin/orders", h.authed(true, h.listAllOrders))
 
-	// login
-	mux.HandleFunc("GET /cart", h.authed(false, h.getCart))
-	mux.HandleFunc("PUT /cart/items/{product_id}", h.authed(false, h.setCartItem))
-	mux.HandleFunc("DELETE /cart/items/{product_id}", h.authed(false, h.removeCartItem))
-	mux.HandleFunc("POST /orders", h.authed(false, h.createOrder))
-	mux.HandleFunc("GET /orders", h.authed(false, h.listMyOrders))
+	// pelanggan saja: admin mengelola toko dan tidak berbelanja (403)
+	mux.HandleFunc("GET /cart", h.shopper(h.getCart))
+	mux.HandleFunc("PUT /cart/items/{product_id}", h.shopper(h.setCartItem))
+	mux.HandleFunc("DELETE /cart/items/{product_id}", h.shopper(h.removeCartItem))
+	mux.HandleFunc("POST /orders", h.shopper(h.createOrder))
+	mux.HandleFunc("GET /orders", h.shopper(h.listMyOrders))
+
+	// login (pelanggan untuk pesanannya sendiri, admin untuk pesanan siapa pun)
 	mux.HandleFunc("GET /orders/{id}", h.authed(false, h.getOrder))
 	mux.HandleFunc("PATCH /orders/{id}/status", h.authed(false, h.changeOrderStatus))
 
@@ -117,6 +119,19 @@ func (h *Handler) authed(adminOnly bool, next func(http.ResponseWriter, *http.Re
 		}
 		next(w, r, domain.Actor{UserID: id.UserID, Admin: id.Role == domain.RoleAdmin})
 	}
+}
+
+// shopper membungkus handler belanja (keranjang dan pesanan). Syaratnya login, dan akun admin ditolak:
+// admin mengelola produk dan status pesanan, tetapi tidak ikut membeli. Aturan ini ada di API,
+// bukan hanya di tampilan, supaya tidak bisa dilewati dengan memanggil API langsung.
+func (h *Handler) shopper(next func(http.ResponseWriter, *http.Request, domain.Actor)) http.HandlerFunc {
+	return h.authed(false, func(w http.ResponseWriter, r *http.Request, who domain.Actor) {
+		if who.Admin {
+			writeError(w, http.StatusForbidden, "akun admin tidak dapat berbelanja; gunakan akun pelanggan")
+			return
+		}
+		next(w, r, who)
+	})
 }
 
 // fail menerjemahkan error service menjadi status HTTP. Detail error internal
